@@ -1,0 +1,19 @@
+doctype html
+html
+  head
+    title Signup Page
+    link(rel="stylesheet", href="/css/style.css")
+  body
+    .container
+      h1 Signup
+      form(action="/api/v1/auth/signup" method="POST")
+        label(for="name") Name:
+        input(type="text" name="name" required)
+        
+        label(for="email") Email:
+        input(type="email" name="email" required)
+        
+        label(for="password") Password:
+        input(type="password" name="password" required)
+        
+        button(type="submit") Signup

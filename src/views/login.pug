@@ -1,0 +1,24 @@
+doctype html
+html
+  head
+    title Login Page
+    link(rel="stylesheet", href="/css/style.css")
+  body
+    .container
+      h1 Login
+      form(action="/api/v1/auth/login" method="POST")
+        label(for="email") Email:
+        input(type="email" name="email" required)
+
+        label(for="password") Password:
+        input(type="password" name="password" required)
+
+        button(type="submit") Login
+
+      //- Extra links below the form
+      .links
+        a(href="/forgot-password") Forgot your password?
+        br
+        br
+        span Don't have an account?
+        a(href="/api/v1/auth/signup") Sign up here
