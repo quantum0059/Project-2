@@ -1,4 +1,5 @@
 import express from "express";
+import {registerUser, loginUser} from "../Controllers/login.controller.js"
 const router = express.Router();
 
 // Base route (GET /api/v1/auth)
@@ -6,15 +7,12 @@ const router = express.Router();
 //     res.render("login"); // or just res.send("Auth works!")
 // });
 
-router.get("/login", (req, res) => {
-    res.render("login");
-});
+router.route("/login").post(loginUser)
 
-router.get("/signup", (req, res) => {
-    res.render("signup");
-});
-router.get("/forgot-password", (req, res) => {
-    res.send("Password reset page coming soon!");
-});
+
+router.route("/register").post(registerUser)
+// router.get("/forgot-password", (req, res) => {
+//     res.send("Password reset page coming soon!");
+// });
 
 export default router;
