@@ -11,6 +11,8 @@ router.route("/login").post(loginUser)
 
 
 router.route("/register").post(registerUser)
+
+
 // router.get("/forgot-password", (req, res) => {
 //     res.send("Password reset page coming soon!");
 // });

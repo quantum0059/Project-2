@@ -37,10 +37,15 @@ const shopSchema = new mongoose.Schema({
     enum: ['clothing', 'electronics', 'grocery', 'others'],
     required: true
   },
+  shopImage:{
+      type: String,
+      required: true
+  }, 
   followers: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'
-  }]
+  }
+]
 }, { timestamps: true });
 
 const Shop = mongoose.models.Shop || mongoose.model('Shop', shopSchema);
