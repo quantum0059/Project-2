@@ -5,13 +5,13 @@ import User from "../models/userschema.js"
 
 export const verfiyUser = asyncHandler(async (req, res, next) => {
     try {
-        const token = req.cookies?.accessToken || req.header("Authorization").replace("Bearer ", "")
-    
+        const token = req.cookies?.accessToken || req.header("Authorization")?.replace("Bearer ", "")
+        console.log(token)
         if(!token){
             throw new ApiError(401, "authorization error")
         }
         
-        const decoded = jwt.verify(token,process.env.CLOUDINARY_SECRET)
+        const decoded = jwt.verify(token,process.env.ACCESS_TOKEN_SECRET)
     
         const user = await User.findById(decoded?._id)
     

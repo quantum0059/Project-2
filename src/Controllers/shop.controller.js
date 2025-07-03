@@ -3,6 +3,7 @@ import  User  from "../models/userschema.js";
 import { asyncHandler } from "../utilities/asyncHandeler.js";
 import { ApiError } from "../utilities/ApiError.js";
 import { uploadOnCloudinary } from "../utilities/cloudinary.js";
+import Sale from "../models/saleschema.js";
 
 export const registerShop = asyncHandler(async (req, res) => {
   const {
@@ -38,7 +39,7 @@ export const registerShop = asyncHandler(async (req, res) => {
     throw new ApiError(400, "You already own a shop");
   }
 
-  const shopImagepath = req.files?.shopImages[0]?.path; 
+  const shopImagepath = req.files?.shopImage[0]?.path; 
 
   const shopImage = await uploadOnCloudinary(shopImagepath)
 
@@ -48,7 +49,7 @@ export const registerShop = asyncHandler(async (req, res) => {
 
   // Create shop
   const shop = await Shop.create({
-    owner,
+    owner:req.user?._id,
     shopName,
     address,
     contactDetails,
@@ -67,5 +68,41 @@ export const registerShop = asyncHandler(async (req, res) => {
     success: true,
     message: "Shop registered successfully",
     shop
+  });
+});
+
+export const registerSales = asyncHandler(async (req, res) => {
+  const { title, description, discount, startDate, endDate } = req.body;
+
+  // ✅ Get userId from the authenticated user (set by verfiyUser middleware)
+  const userId = req.user._id;
+
+  // ✅ Validate required fields
+  if (!title || !discount || !startDate || !endDate) {
+    throw new ApiError(400, "Title, discount, start date, and end date are required");
+  }
+
+  // ✅ Check if the user owns a shop
+  const shop = await Shop.findOne({ owner: userId });
+
+  if (!shop) {
+    throw new ApiError(403, "You must own a shop to register a sale");
+  }
+
+  // ✅ Create the sale linked to the shop
+  const sale = await Sale.create({
+    shop: shop._id,
+    title,
+    description,
+    discount,
+    startDate: new Date(startDate),
+    endDate: new Date(endDate),
+  });
+
+  // ✅ Respond with success
+  res.status(201).json({
+    success: true,
+    message: "Sale registered successfully",
+    sale,
   });
 });
