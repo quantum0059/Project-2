@@ -7,10 +7,16 @@ const router = express.Router();
 //     res.render("login"); // or just res.send("Auth works!")
 // });
 
-router.route("/login").post(loginUser)
+router
+  .route("/login")
+  .get((req, res) => {
+    res.render("login"); // render login.pug
+  })
+  .post(loginUser);
 
-
-router.route("/register").post(registerUser)
+router.route("/register").get((req, res) => {
+    res.render("signup")
+}).post(registerUser)
 
 
 // router.get("/forgot-password", (req, res) => {

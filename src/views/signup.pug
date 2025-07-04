@@ -2,18 +2,47 @@ doctype html
 html
   head
     title Signup Page
-    link(rel="stylesheet", href="/css/style.css")
+    link(rel="stylesheet", href="/css/style2.css")
+    script.
+      // Get location and set hidden inputs
+      window.addEventListener("load", () => {
+        if (navigator.geolocation) {
+          navigator.geolocation.getCurrentPosition(
+            (position) => {
+              const lon = position.coords.longitude;
+              const lat = position.coords.latitude;
+
+              document.getElementById("longitude").value = lon;
+              document.getElementById("latitude").value = lat;
+            },
+            (error) => {
+              console.error("Location access denied or error: ", error);
+            }
+          );
+        } else {
+          alert("Geolocation is not supported by your browser.");
+        }
+      });
   body
     .container
       h1 Signup
-      form(action="/api/v1/auth/signup" method="POST")
+      form(action="/api/v1/auth/register" method="POST")
         label(for="name") Name:
-        input(type="text" name="name" required)
-        
+        input(type="text" name="name" required placeholder="Your full name")
+
         label(for="email") Email:
-        input(type="email" name="email" required)
-        
+        input(type="email" name="email" required placeholder="you@example.com")
+
         label(for="password") Password:
-        input(type="password" name="password" required)
-        
+        input(type="password" name="password" required minlength="6" placeholder="Minimum 6 characters")
+
+        label(for="role") Role:
+        select(name="role" required)
+          option(value="user" selected) User
+          option(value="owner") Owner
+
+        //- Hidden location inputs
+        input(type="hidden" name="longitude" id="longitude")
+        input(type="hidden" name="latitude" id="latitude")
+
         button(type="submit") Signup

@@ -5,7 +5,9 @@ import {verfiyUser} from "../middleware/auth.middleware.js"
 
 const router = Router()
 
-router.route("/shopregister").post(
+router.route("/shopregister").get((req, res) => {
+    res.render("shop")
+}).post(
     verfiyUser,
     upload.fields([
         {

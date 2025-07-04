@@ -1,50 +1,72 @@
 import { access } from "fs";
 import User from "../models/userschema.js";
 import {ApiResponse} from "../utilities/ApiResponse.js"
+import { asyncHandler } from "../utilities/asyncHandeler.js";
 
 
 // ------------------ SIGNUP ------------------
-export const registerUser = async (req, res) => {
-    const { name, email, password, location } = req.body;
+export const registerUser = asyncHandler(async (req, res) => {
+  const { name, email, password, role, longitude, latitude } = req.body;
 
-    try {
-        // Check if user already exists
-        const existingUser = await User.findOne({ email });
-        if (existingUser) {
-            return res.status(409).json({ message: "User already exists" });
-        }
+  // ✅ Check for required fields
+  if (!name || !email || !password || !role) {
+    res.status(400);
+    throw new Error("All fields are required");
+  }
 
-        // Create new user
-        const newUser = new User({
-            name,
-            email,
-            password,
-            location
-        });
+  // ✅ Check for location access
+  if (!longitude || !latitude) {
+    res.status(400);
+    throw new Error("Location permission is required to register");
+  }
 
-        await newUser.save();
+  const lon = parseFloat(longitude);
+  const lat = parseFloat(latitude);
+  if (isNaN(lon) || isNaN(lat)) {
+    res.status(400);
+    throw new Error("Invalid location coordinates");
+  }
 
-        const accessToken = newUser.generateAccessToken();
-        const refreshToken = newUser.generateRefreshToken();
-// 
-        res.status(201).json({
-            message: "User registered successfully",
-            accessToken,
-            refreshToken,
-            user: {
-                id: newUser._id,
-                name: newUser.name,
-                email: newUser.email,
-                role: newUser.role
-            }
-        });
+  // ✅ Check if user already exists
+  const existingUser = await User.findOne({ email });
+  if (existingUser) {
+    res.status(409);
+    throw new Error("User already exists");
+  }
 
-    } catch (error) {
-        console.error("Signup error:", error);
-        res.status(500).json({ message: "Something went wrong" });
-    }
-};
+  // ✅ Build location object
+  const location = {
+    type: "Point",
+    coordinates: [lon, lat],
+  };
 
+  // ✅ Create user
+  const newUser = new User({
+    name,
+    email,
+    password,
+    role,
+    location
+  });
+
+  await newUser.save();
+
+  const accessToken = newUser.generateAccessToken();
+  const refreshToken = newUser.generateRefreshToken();
+
+  res.status(201).json(
+    new ApiResponse(201, {
+      accessToken,
+      refreshToken,
+      user: {
+        id: newUser._id,
+        name: newUser.name,
+        email: newUser.email,
+        role: newUser.role,
+      },
+    }, "User registered successfully")
+  );
+});
 
 // ------------------ LOGIN ------------------
 export const loginUser = async (req, res) => {
