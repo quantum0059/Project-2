@@ -11,7 +11,7 @@ import { ApiResponse } from "../utils/ApiResponse.js";
 // @route  GET /api/sales
 // ==========================
 export const getAllSales = asyncHandler(async (req, res) => {
-  const { category, search } = req.query;
+  const { category, search } = req.query;//req.query is used for seraching and filtering
 
   const query = {};
 
@@ -23,7 +23,11 @@ export const getAllSales = asyncHandler(async (req, res) => {
 
   // filter by sale title
   if (search) {
-    query.title = { $regex: search, $options: "i" };
+    const words = search.trim().split(/\s+/); // plsit search into words
+
+    query.$and = words.map((word) => ({
+      title: {$regex: word, $options:"i"}
+    }));
   }
 
   const sales = await Sale.find(query)
@@ -60,5 +64,45 @@ export const getSaleById = asyncHandler(async (req, res) => {
 
   res.status(200).json(
     new ApiResponse(200, sale, "Fetched sale and incremented views")
+  );
+});
+
+export const updateSaleByShopkeeper = asyncHandler(async (req, res) => {
+  const { saleId } = req.params;
+  const userId = req.user._id;
+
+  // 1. Find shop owned by this user
+  const shop = await Shop.findOne({ owner: userId });
+  if (!shop) throw new ApiError(404, "Shop not found");
+
+  // 2. Ensure sale belongs to their shop
+  const sale = await Sale.findOne({ _id: saleId, shop: shop._id });
+  if (!sale) throw new ApiError(403, "Unauthorized to update this sale");
+
+  // 3. Update the sale
+  const updatedSale = await Sale.findByIdAndUpdate(saleId, req.body, {
+    new: true,
+    runValidators: true
+  });
+
+  res.status(200).json(
+    new ApiResponse(200, updatedSale, "Sale updated successfully")
+  );
+});
+
+export const getSalesForShopkeeper = asyncHandler(async (req, res) => {
+  const userId = req.user._id;
+
+  // 1. Find shop owned by this user
+  const shop = await Shop.findOne({ owner: userId });
+  if (!shop) {
+    throw new ApiError(404, "Shop not found for this user");
+  }
+
+  // 2. Find sales for this shop
+  const sales = await Sale.find({ shop: shop._id }).sort({ startDate: -1 });
+
+  res.status(200).json(
+    new ApiResponse(200, sales, "Fetched all sales for this shopkeeper")
   );
 });

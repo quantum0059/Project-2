@@ -110,3 +110,84 @@ export const loginUser = async (req, res) => {
     }
 };
 
+// res.cookie("accessToken", accessToken, options);
+// res.cookie("refreshToken", refreshToken, options);
+// return res.redirect("/api/v1/shop/shopregister");
+
+//--------------------LOGOUT---------------------
+export const logOutUser = asyncHandler( async (req, res) => {
+   await User.findByIdAndUpdate(
+             req.user._id,
+             {
+               $unset: {
+                   refreshToken: 1
+               }
+             },
+             {
+              new : true
+             }
+        )
+
+        const options = {
+              httpOnly: true,
+              secure: true
+        }
+
+        return res
+               .status(200)
+               .clearCookie("accessToken", options)
+               .clearCookie("refreshToken", options)
+               .json(
+                 200,
+                 {},
+                 "User logOut Successfully"
+               )
+});
+
+export const changeUserPassword = asyncHandler(async(req, res) => {
+    const {oldPassword, newPassword} = req.body
+});
+export const followShop = asyncHandler(async (req, res) => {
+  const userId = req.user._id;
+  const { shopId } = req.params;
+
+  // ✅ Check if shop exists
+  const shop = await Shop.findById(shopId);
+  if (!shop) throw new ApiError(404, "Shop not found");
+
+  // ✅ Add to following list if not already followed
+  const user = await User.findById(userId);
+  if (!user.followingShops.includes(shopId)) {
+    user.followingShops.push(shopId);
+    await user.save();
+  }
+
+  res.status(200).json(
+    new ApiResponse(200, user.followingShops, "Shop followed successfully")
+  );
+});
+
+export const unfollowShop = asyncHandler(async (req, res) => {
+  const userId = req.user._id;
+  const { shopId } = req.params;
+
+  const user = await User.findById(userId);
+  user.followingShops = user.followingShops.filter(
+    (id) => id.toString() !== shopId
+  );
+  await user.save();
+
+  res.status(200).json(
+    new ApiResponse(200, user.followingShops, "Shop unfollowed successfully")
+  );
+});
+
+export const getFollowedShops = asyncHandler(async (req, res) => {
+  const userId = req.user._id;
+
+  const user = await User.findById(userId).populate("followingShops");
+
+  res.status(200).json(
+    new ApiResponse(200, user.followingShops, "Fetched followed shops")
+  );
+});

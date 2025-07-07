@@ -106,3 +106,39 @@ export const registerSales = asyncHandler(async (req, res) => {
     sale,
   });
 });
+export const followShop = asyncHandler(async (req, res) => {
+  const userId = req.user._id;
+  const { shopId } = req.params;
+
+  const shop = await Shop.findById(shopId);
+  if (!shop) throw new ApiError(404, "Shop not found");
+
+  const user = await User.findById(userId);
+
+  // Update user's followingShops
+  if (!user.followingShops.includes(shopId)) {
+    user.followingShops.push(shopId);
+    await user.save();
+  }
+
+  // ✅ Update shop's followers list
+  if (!shop.followers.includes(userId)) {
+    shop.followers.push(userId);
+    await shop.save();
+  }
+
+  res.status(200).json(
+    new ApiResponse(200, { followingShops: user.followingShops }, "Shop followed successfully")
+  );
+});
+export const getShopFollowers = asyncHandler(async (req, res) => {
+  const userId = req.user._id;
+
+  // Get shop of the current logged-in owner
+  const shop = await Shop.findOne({ owner: userId }).populate('followers', 'name email');
+  if (!shop) throw new ApiError(404, "Shop not found");
+
+  res.status(200).json(
+    new ApiResponse(200, shop.followers, "Fetched followers of the shop")
+  );
+});
