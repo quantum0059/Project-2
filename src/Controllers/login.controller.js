@@ -2,9 +2,27 @@ import { access } from "fs";
 import User from "../models/userschema.js";
 import {ApiResponse} from "../utilities/ApiResponse.js"
 import { asyncHandler } from "../utilities/asyncHandeler.js";
+import { ApiError } from "../utilities/ApiError.js";
+import jwt from "jsonwebtoken"
+import Cart from "../models/cartSchema.js"
 
+const generateAccessAndRefereshTokens =  async(userId) => {
+   try {
 
-// ------------------ SIGNUP ------------------
+    const user = User.findById(userId)
+    const accessToken = user.generateAccessToken()
+    const refreshToken = user.generateRefreshToken()
+
+    user.refreshToken = refreshToken
+    await user.save({validateBeforeSave: false})
+
+    return {accessToken, refreshToken}
+    
+   } catch (error) {
+      throw new ApiError(500, "Something went wrong while generating access and refresh token")
+   }
+}
+
 export const registerUser = asyncHandler(async (req, res) => {
   const { name, email, password, role, longitude, latitude } = req.body;
 
@@ -68,7 +86,6 @@ export const registerUser = asyncHandler(async (req, res) => {
   );
 });
 
-// ------------------ LOGIN ------------------
 export const loginUser = async (req, res) => {
     const { email, password } = req.body;
 
@@ -114,7 +131,6 @@ export const loginUser = async (req, res) => {
 // res.cookie("refreshToken", refreshToken, options);
 // return res.redirect("/api/v1/shop/shopregister");
 
-//--------------------LOGOUT---------------------
 export const logOutUser = asyncHandler( async (req, res) => {
    await User.findByIdAndUpdate(
              req.user._id,
@@ -137,16 +153,113 @@ export const logOutUser = asyncHandler( async (req, res) => {
                .status(200)
                .clearCookie("accessToken", options)
                .clearCookie("refreshToken", options)
-               .json(
+               .json(new ApiResponse(
                  200,
                  {},
                  "User logOut Successfully"
-               )
+               ))
 });
 
 export const changeUserPassword = asyncHandler(async(req, res) => {
-    const {oldPassword, newPassword} = req.body
+    const {oldPassword, newPassword} = req.body//it's like when you have to chnage pasowrd you fill two entry old password and new passowrd in the frontend..
+
+    const user = await User.findById(req.user?._id)
+
+    const isPasswordCorrect = await user.isPasswordCorrect(oldPassword)
+
+    if(!isPasswordCorrect){
+       throw new ApiError(400, "Incorrect password")
+    }
+
+    user.password = newPassword
+    await user.save({validateBeforeSave: false})
+
+    return res
+           .status(200)
+           .json(new ApiResponse(200, {}, "password change Successfully"))
+
 });
+
+export const refreshAccessToken = asyncHandler( async(req, res) => {
+    const incomingRefreshToken = req.cookie.refreshToken || req.body.refreshToken
+
+    if(!incomingRefreshToken){
+      throw new ApiError(401, "UnAuthorize request")
+    }
+
+    try {
+        
+      const decodedToken = jwt.verify(incomingRefreshToken, process.env.REFRESH_TOKEN_SECRET)
+
+      const user = await User.findById(decodedToken?._id)
+
+      if(!user){
+        throw new ApiError(401, "Invalid refresh token")
+      }
+
+      if(incomingRefreshToken !== user?.refreshToken){
+          throw new ApiError(401, "Invalid refresh token")
+      }
+
+      const {accessToken, newRefreshToken} = await generateAccessAndRefereshTokens(user._id)
+
+      const options = {
+          httpOnly: true,
+          secure: true
+      }
+
+      return res
+             .status(200)
+             .cookie("accessToken", accessToken, options)
+             .cookie("refrehToken", newRefreshToken, options)
+             .json(
+               new ApiResponse(
+                200,
+                {accessToken, refreshToken: newRefreshToken},
+                "Access Token successfully refreshed"
+               )
+             )
+
+    } catch (error) {
+      throw new ApiError(401, error?.message || "Invalid refresh Token")
+    }    
+})
+
+export const getCurrentUser = asyncHandler(async (req, res) => {
+    return res
+           .status(200)
+           .json(new ApiResponse(200, req.user, "current user fetchde successfully"))
+})
+
+export const updateAccountDetail = asyncHandler(async (req, res) => {
+   const {name, email} = req.body
+
+   if(!name && !email){
+      throw new ApiError(400, "feild is required")
+   }
+
+   const user = await User.findByIdAndUpdate(
+                req.user?._id,
+                {
+                  $set:{
+                    ...(name && {name}),// we're conditionally adding name or email that's why we need (...) spread operator
+                    ...(email && {email})
+                  }
+                },
+                {
+                  new: true
+                }
+   )
+
+   if(!user){
+    throw new ApiError(400, "User not found")
+   }
+
+   return res
+          .status(200)
+          .json(new ApiResponse(200, user, "Account detail update successfully"))
+})
+
 export const followShop = asyncHandler(async (req, res) => {
   const userId = req.user._id;
   const { shopId } = req.params;
@@ -181,6 +294,51 @@ export const unfollowShop = asyncHandler(async (req, res) => {
     new ApiResponse(200, user.followingShops, "Shop unfollowed successfully")
   );
 });
+
+export const getUserCart = asyncHandler(async (req, res) => {
+     const userCart = await Cart.aggregate([
+      {$match : {user: req.user._id}},
+      {
+        $lookup: {
+          from:"sales",
+          localField:"sales",
+          foreignField:"_id",
+          as:"salesInfo"
+        }
+      },
+      {
+        $unwind: "$salesInfo"
+      },
+      
+      {
+        $lookup:{
+          from:"shops",
+          localField:"salesInfo.shop",
+          foreignField:"_id",
+          as:"salesInfo.shop"
+
+        }
+      },
+      {
+        $unwind:"$salesInfo.shop"
+      },
+      {
+        $group: {
+          _id:"$_id",
+          user: {$first:"$user"},
+          sales: {$push: "$salesInfo"}
+        }
+      }
+     ]);
+
+     const sales = userCart[0]?.sales || [];
+
+     return res
+            .status(200)
+            .json(
+              new ApiResponse(200, sales, "User cart is fetched successfully")
+            )
+})
 
 export const getFollowedShops = asyncHandler(async (req, res) => {
   const userId = req.user._id;
