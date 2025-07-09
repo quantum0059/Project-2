@@ -85,6 +85,10 @@ export const registerSales = asyncHandler(async (req, res) => {
   // ✅ Check if the user owns a shop
   const shop = await Shop.findOne({ owner: userId });
 
+  const saleImagePath = req.files?.saleImage[0]?.path;
+
+  const saleImage = await uploadOnCloudinary(saleImagePath)
+
   if (!shop) {
     throw new ApiError(403, "You must own a shop to register a sale");
   }
@@ -94,6 +98,7 @@ export const registerSales = asyncHandler(async (req, res) => {
     shop: shop._id,
     title,
     description,
+    image: saleImage.url,
     discount,
     startDate: new Date(startDate),
     endDate: new Date(endDate),
@@ -106,31 +111,8 @@ export const registerSales = asyncHandler(async (req, res) => {
     sale,
   });
 });
-export const followShop = asyncHandler(async (req, res) => {
-  const userId = req.user._id;
-  const { shopId } = req.params;
 
-  const shop = await Shop.findById(shopId);
-  if (!shop) throw new ApiError(404, "Shop not found");
 
-  const user = await User.findById(userId);
-
-  // Update user's followingShops
-  if (!user.followingShops.includes(shopId)) {
-    user.followingShops.push(shopId);
-    await user.save();
-  }
-
-  // ✅ Update shop's followers list
-  if (!shop.followers.includes(userId)) {
-    shop.followers.push(userId);
-    await shop.save();
-  }
-
-  res.status(200).json(
-    new ApiResponse(200, { followingShops: user.followingShops }, "Shop followed successfully")
-  );
-});
 export const getShopFollowers = asyncHandler(async (req, res) => {
   const userId = req.user._id;
 

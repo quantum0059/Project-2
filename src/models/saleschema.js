@@ -16,6 +16,9 @@ const saleSchema = new mongoose.Schema({
     default: '',
     trim: true,
   },
+  image:{
+    type:String
+  },
   discount: {
     type: Number,
     required: true,

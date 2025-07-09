@@ -4,7 +4,8 @@ import {ApiResponse} from "../utilities/ApiResponse.js"
 import { asyncHandler } from "../utilities/asyncHandeler.js";
 import { ApiError } from "../utilities/ApiError.js";
 import jwt from "jsonwebtoken"
-import Cart from "../models/cartSchema.js"
+import {Cart} from "../models/cartSchema.js"
+import Shop from "../models/shopschema.js"
 
 const generateAccessAndRefereshTokens =  async(userId) => {
    try {
@@ -225,11 +226,11 @@ export const refreshAccessToken = asyncHandler( async(req, res) => {
     }    
 })
 
-export const getCurrentUser = asyncHandler(async (req, res) => {
-    return res
-           .status(200)
-           .json(new ApiResponse(200, req.user, "current user fetchde successfully"))
-})
+// export const getCurrentUser = asyncHandler(async (req, res) => {
+//     return res
+//            .status(200)
+//            .json(new ApiResponse(200, req.user, "current user fetchde successfully"))
+// })
 
 export const updateAccountDetail = asyncHandler(async (req, res) => {
    const {name, email} = req.body
@@ -349,3 +350,4 @@ export const getFollowedShops = asyncHandler(async (req, res) => {
     new ApiResponse(200, user.followingShops, "Fetched followed shops")
   );
 });
+//667788

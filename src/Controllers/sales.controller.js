@@ -1,9 +1,9 @@
 import mongoose from "mongoose";
-import Sale from "../models/saleModel.js";
-import Shop from "../models/shopModel.js";
-import { asyncHandler } from "../utils/AsyncHandler.js";
-import { ApiError } from "../utils/ApiError.js";
-import { ApiResponse } from "../utils/ApiResponse.js";
+import Sale from "../models/saleschema.js";
+import Shop from "../models/shopschema.js";
+import { asyncHandler } from "../utilities/asyncHandeler.js";
+import { ApiError } from "../utilities/ApiError.js";
+import { ApiResponse } from "../utilities/ApiResponse.js";
 
 
 // ==========================
@@ -71,15 +71,20 @@ export const updateSaleByShopkeeper = asyncHandler(async (req, res) => {
   const { saleId } = req.params;
   const userId = req.user._id;
 
-  // 1. Find shop owned by this user
+  if (!mongoose.Types.ObjectId.isValid(saleId)) {
+    throw new ApiError(400, "Invalid sale ID");
+  }
+
+  if (!req.body || Object.keys(req.body).length === 0) {
+    throw new ApiError(400, "No update data provided");
+  }
+
   const shop = await Shop.findOne({ owner: userId });
   if (!shop) throw new ApiError(404, "Shop not found");
 
-  // 2. Ensure sale belongs to their shop
   const sale = await Sale.findOne({ _id: saleId, shop: shop._id });
   if (!sale) throw new ApiError(403, "Unauthorized to update this sale");
 
-  // 3. Update the sale
   const updatedSale = await Sale.findByIdAndUpdate(saleId, req.body, {
     new: true,
     runValidators: true
@@ -89,6 +94,7 @@ export const updateSaleByShopkeeper = asyncHandler(async (req, res) => {
     new ApiResponse(200, updatedSale, "Sale updated successfully")
   );
 });
+
 
 export const getSalesForShopkeeper = asyncHandler(async (req, res) => {
   const userId = req.user._id;
@@ -106,3 +112,4 @@ export const getSalesForShopkeeper = asyncHandler(async (req, res) => {
     new ApiResponse(200, sales, "Fetched all sales for this shopkeeper")
   );
 });
+

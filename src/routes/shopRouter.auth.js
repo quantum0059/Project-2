@@ -1,5 +1,5 @@
 import {Router} from "express";
-import { registerShop, registerSales } from "../Controllers/shop.controller.js";
+import { registerShop, registerSales, getShopFollowers } from "../Controllers/shop.controller.js";
 import {upload} from "../middleware/multer.middleware.js"
 import {verfiyUser} from "../middleware/auth.middleware.js"
 
@@ -17,5 +17,14 @@ router.route("/shopregister").get(verfiyUser, (req, res) => {
     ]),
     registerShop
 )
-router.route("/registerSales").post(verfiyUser, registerSales)
+router.route("/registerSales").post(verfiyUser, 
+     
+    upload.fields([
+        {
+            name: "saleImage",
+            maxCount: 1
+        }
+    ]),
+    registerSales)
+router.route("/shopfollowers").get(verfiyUser, getShopFollowers)
 export default router

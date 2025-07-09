@@ -3,6 +3,7 @@ import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import authRoutes from "./routes/route.auth.js";
 import shopRoutes from "./routes/shopRouter.auth.js"
+import salesRouter from "./routes/sales.routes.js"
 
 import path from "path";
 import { fileURLToPath } from "url";
@@ -27,6 +28,7 @@ app.use(express.static("public"));
 app.use(cookieParser());
 
 app.use("/api/v1/auth", authRoutes);
-app.use("/api/v1/shop", shopRoutes);
+app.use("/api/v1/shops", shopRoutes);
+app.use("/api/v1/sales", salesRouter)
 
 export { app };
