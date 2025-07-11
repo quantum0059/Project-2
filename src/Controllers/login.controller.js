@@ -1,28 +1,32 @@
 import { access } from "fs";
 import User from "../models/userschema.js";
-import {ApiResponse} from "../utilities/ApiResponse.js"
+import { ApiResponse } from "../utilities/ApiResponse.js";
 import { asyncHandler } from "../utilities/asyncHandeler.js";
 import { ApiError } from "../utilities/ApiError.js";
-import jwt from "jsonwebtoken"
-import {Cart} from "../models/cartSchema.js"
-import Shop from "../models/shopschema.js"
+import jwt from "jsonwebtoken";
+import { Cart } from "../models/cartSchema.js";
+import Shop from "../models/shopschema.js";
 
-const generateAccessAndRefereshTokens =  async(userId) => {
-   try {
+import { OAuth2Client } from 'google-auth-library';
+const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
-    const user = User.findById(userId)
-    const accessToken = user.generateAccessToken()
-    const refreshToken = user.generateRefreshToken()
+const generateAccessAndRefereshTokens = async (userId) => {
+  try {
+    const user = await User.findById(userId);
+    const accessToken = user.generateAccessToken();
+    const refreshToken = user.generateRefreshToken();
 
-    user.refreshToken = refreshToken
-    await user.save({validateBeforeSave: false})
+    user.refreshToken = refreshToken;
+    await user.save({ validateBeforeSave: false });
 
-    return {accessToken, refreshToken}
-    
-   } catch (error) {
-      throw new ApiError(500, "Something went wrong while generating access and refresh token")
-   }
-}
+    return { accessToken, refreshToken };
+  } catch (error) {
+    throw new ApiError(
+      500,
+      "Something went wrong while generating access and refresh token"
+    );
+  }
+};
 
 export const registerUser = asyncHandler(async (req, res) => {
   const { name, email, password, role, longitude, latitude } = req.body;
@@ -65,7 +69,7 @@ export const registerUser = asyncHandler(async (req, res) => {
     email,
     password,
     role,
-    location
+    location,
   });
 
   await newUser.save();
@@ -74,157 +78,246 @@ export const registerUser = asyncHandler(async (req, res) => {
   const refreshToken = newUser.generateRefreshToken();
 
   res.status(201).json(
-    new ApiResponse(201, {
-      accessToken,
-      refreshToken,
-      user: {
-        id: newUser._id,
-        name: newUser.name,
-        email: newUser.email,
-        role: newUser.role,
+    new ApiResponse(
+      201,
+      {
+        accessToken,
+        refreshToken,
+        user: {
+          id: newUser._id,
+          name: newUser.name,
+          email: newUser.email,
+          role: newUser.role,
+        },
       },
-    }, "User registered successfully")
+      "User registered successfully"
+    )
   );
 });
 
 export const loginUser = async (req, res) => {
-    const { email, password } = req.body;
+  const { email, password, latitude, longitude } = req.body;
 
-    try {
-        const user = await User.findOne({ email });
-        if (!user) {
-            return res.status(401).json({ message: "User not found" });
-        }
-
-        const isMatch = await user.isPasswordCorrect(password);
-        if (!isMatch) {
-            return res.status(401).json({ message: "Invalid password" });
-        }
-
-        const accessToken = user.generateAccessToken();
-        const refreshToken = user.generateRefreshToken();
-
-        const logUser = await User.findById(user._id).select("-password -refreshToken")
-
-        const options = {
-            httpOnly: true,
-            secure: true
-        }
-
-        res.status(200)
-        .cookie("accessToken", accessToken, options)
-        .cookie("refreshToken", refreshToken, options)
-        .json(
-            new ApiResponse(200, 
-                {
-                user: logUser, refreshToken, accessToken
-            },
-        "User looged in sucessfully")
-        );
-
-    } catch (error) {
-        console.error("Login error:", error);
-        res.status(500).json({ message: "Something went wrong" });
+  try {
+    if (!latitude || !longitude) {
+      return res
+        .status(400)
+        .json({ message: "Location is required for login" });
     }
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(401).json({ message: "User not found" });
+    }
+    if (user.isGoogleUser) {
+      return res.status(403).json({
+        message: "This account uses Google login. Please use Google to sign in.",
+      });
+    }
+
+    const isMatch = await user.isPasswordCorrect(password);
+    if (!isMatch) {
+      return res.status(401).json({ message: "Invalid password" });
+    }
+
+    const accessToken = user.generateAccessToken();
+    const refreshToken = user.generateRefreshToken();
+    
+    user.latitude = latitude
+    user.longitude = longitude
+    user.refreshToken = refreshToken;
+    
+    await user.save({ validateBeforeSave: false });
+    const logUser = await User.findById(user._id).select(
+      "-password -refreshToken"
+    );
+
+    const options = {
+      httpOnly: true,
+      secure: true,
+    };
+
+    res
+      .status(200)
+      .cookie("accessToken", accessToken, options)
+      .cookie("refreshToken", refreshToken, options)
+      .json(
+        new ApiResponse(
+          200,
+          {
+            user: logUser,
+            refreshToken,
+            accessToken,
+          },
+          "User looged in sucessfully"
+        )
+      );
+  } catch (error) {
+    console.error("Login error:", error);
+    res.status(500).json({ message: "Something went wrong" });
+  }
 };
 
 // res.cookie("accessToken", accessToken, options);
 // res.cookie("refreshToken", refreshToken, options);
 // return res.redirect("/api/v1/shop/shopregister");
 
-export const logOutUser = asyncHandler( async (req, res) => {
-   await User.findByIdAndUpdate(
-             req.user._id,
-             {
-               $unset: {
-                   refreshToken: 1
-               }
-             },
-             {
-              new : true
-             }
-        )
+export const googleLogin = asyncHandler(async (req, res) => {
+  const { token, latitude, longitude  } = req.body;
 
-        const options = {
-              httpOnly: true,
-              secure: true
-        }
+  if (!token || !latitude || !longitude) {
+    throw new ApiError(400, "Google token and location are required");
+  }
 
-        return res
-               .status(200)
-               .clearCookie("accessToken", options)
-               .clearCookie("refreshToken", options)
-               .json(new ApiResponse(
-                 200,
-                 {},
-                 "User logOut Successfully"
-               ))
+  const ticket = await client.verifyIdToken({
+    idToken: token,
+    audience: process.env.GOOGLE_CLIENT_ID,
+  });
+
+  const payload = ticket.getPayload();
+
+  const { email, name, sub: googleId } = payload;
+
+  const location = {
+    type: "Point",
+    coordinates: [parseFloat(longitude), parseFloat(latitude)],
+  };
+
+  let user = await User.findOne({ googleId }) || await User.findOne({ email });
+
+
+  if (!user) {
+    user = await User.create({
+      name,
+      email,
+      isGoogleUser: true, // Empty because it's Google login
+      googleId,
+      location,
+    });
+  }
+
+  const accessToken = user.generateAccessToken();
+  const refreshToken = user.generateRefreshToken();
+
+  user.refreshToken = refreshToken;
+  await user.save({ validateBeforeSave: false });
+
+  const options = {
+    httpOnly: true,
+    secure: true,
+  };
+
+  return res
+    .status(200)
+    .cookie("accessToken", accessToken, options)
+    .cookie("refreshToken", refreshToken, options)
+    .json(
+      new ApiResponse(
+        200,
+        {
+          user: {
+            id: user._id,
+            name: user.name,
+            email: user.email,
+            role: user.role,
+          },
+          accessToken,
+          refreshToken,
+        },
+        "Google login successful"
+      )
+    );
 });
 
-export const changeUserPassword = asyncHandler(async(req, res) => {
-    const {oldPassword, newPassword} = req.body//it's like when you have to chnage pasowrd you fill two entry old password and new passowrd in the frontend..
+export const logOutUser = asyncHandler(async (req, res) => {
+  await User.findByIdAndUpdate(
+    req.user._id,
+    {
+      $unset: {
+        refreshToken: 1,
+      },
+    },
+    {
+      new: true,
+    }
+  );
 
-    const user = await User.findById(req.user?._id)
+  const options = {
+    httpOnly: true,
+    secure: true,
+  };
 
-    const isPasswordCorrect = await user.isPasswordCorrect(oldPassword)
+  return res
+    .status(200)
+    .clearCookie("accessToken", options)
+    .clearCookie("refreshToken", options)
+    .json(new ApiResponse(200, {}, "User logOut Successfully"));
+});
 
-    if(!isPasswordCorrect){
-       throw new ApiError(400, "Incorrect password")
+export const changeUserPassword = asyncHandler(async (req, res) => {
+  const { oldPassword, newPassword } = req.body; //it's like when you have to chnage pasowrd you fill two entry old password and new passowrd in the frontend..
+
+  const user = await User.findById(req.user?._id);
+
+  const isPasswordCorrect = await user.isPasswordCorrect(oldPassword);
+
+  if (!isPasswordCorrect) {
+    throw new ApiError(400, "Incorrect password");
+  }
+
+  user.password = newPassword;
+  await user.save({ validateBeforeSave: false });
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, {}, "password change Successfully"));
+});
+
+export const refreshAccessToken = asyncHandler(async (req, res) => {
+  const incomingRefreshToken = req.cookie.refreshToken || req.body.refreshToken;
+
+  if (!incomingRefreshToken) {
+    throw new ApiError(401, "UnAuthorize request");
+  }
+
+  try {
+    const decodedToken = jwt.verify(
+      incomingRefreshToken,
+      process.env.REFRESH_TOKEN_SECRET
+    );
+
+    const user = await User.findById(decodedToken?._id);
+
+    if (!user) {
+      throw new ApiError(401, "Invalid refresh token");
     }
 
-    user.password = newPassword
-    await user.save({validateBeforeSave: false})
+    if (incomingRefreshToken !== user?.refreshToken) {
+      throw new ApiError(401, "Invalid refresh token");
+    }
+
+    const { accessToken, newRefreshToken } =
+      await generateAccessAndRefereshTokens(user._id);
+
+    const options = {
+      httpOnly: true,
+      secure: true,
+    };
 
     return res
-           .status(200)
-           .json(new ApiResponse(200, {}, "password change Successfully"))
-
+      .status(200)
+      .cookie("accessToken", accessToken, options)
+      .cookie("refreshToken", newRefreshToken, options)
+      .json(
+        new ApiResponse(
+          200,
+          { accessToken, refreshToken: newRefreshToken },
+          "Access Token successfully refreshed"
+        )
+      );
+  } catch (error) {
+    throw new ApiError(401, error?.message || "Invalid refresh Token");
+  }
 });
-
-export const refreshAccessToken = asyncHandler( async(req, res) => {
-    const incomingRefreshToken = req.cookie.refreshToken || req.body.refreshToken
-
-    if(!incomingRefreshToken){
-      throw new ApiError(401, "UnAuthorize request")
-    }
-
-    try {
-        
-      const decodedToken = jwt.verify(incomingRefreshToken, process.env.REFRESH_TOKEN_SECRET)
-
-      const user = await User.findById(decodedToken?._id)
-
-      if(!user){
-        throw new ApiError(401, "Invalid refresh token")
-      }
-
-      if(incomingRefreshToken !== user?.refreshToken){
-          throw new ApiError(401, "Invalid refresh token")
-      }
-
-      const {accessToken, newRefreshToken} = await generateAccessAndRefereshTokens(user._id)
-
-      const options = {
-          httpOnly: true,
-          secure: true
-      }
-
-      return res
-             .status(200)
-             .cookie("accessToken", accessToken, options)
-             .cookie("refrehToken", newRefreshToken, options)
-             .json(
-               new ApiResponse(
-                200,
-                {accessToken, refreshToken: newRefreshToken},
-                "Access Token successfully refreshed"
-               )
-             )
-
-    } catch (error) {
-      throw new ApiError(401, error?.message || "Invalid refresh Token")
-    }    
-})
 
 // export const getCurrentUser = asyncHandler(async (req, res) => {
 //     return res
@@ -233,33 +326,33 @@ export const refreshAccessToken = asyncHandler( async(req, res) => {
 // })
 
 export const updateAccountDetail = asyncHandler(async (req, res) => {
-   const {name, email} = req.body
+  const { name, email } = req.body;
 
-   if(!name && !email){
-      throw new ApiError(400, "feild is required")
-   }
+  if (!name && !email) {
+    throw new ApiError(400, "feild is required");
+  }
 
-   const user = await User.findByIdAndUpdate(
-                req.user?._id,
-                {
-                  $set:{
-                    ...(name && {name}),// we're conditionally adding name or email that's why we need (...) spread operator
-                    ...(email && {email})
-                  }
-                },
-                {
-                  new: true
-                }
-   )
+  const user = await User.findByIdAndUpdate(
+    req.user?._id,
+    {
+      $set: {
+        ...(name && { name }), // we're conditionally adding name or email that's why we need (...) spread operator
+        ...(email && { email }),
+      },
+    },
+    {
+      new: true,
+    }
+  );
 
-   if(!user){
-    throw new ApiError(400, "User not found")
-   }
-
-   return res
-          .status(200)
-          .json(new ApiResponse(200, user, "Account detail update successfully"))
-})
+  if (!user) {
+    throw new ApiError(400, "User not found");
+  }
+ 
+  return res
+    .status(200)
+    .json(new ApiResponse(200, user, "Account detail update successfully"));
+});
 
 export const followShop = asyncHandler(async (req, res) => {
   const userId = req.user._id;
@@ -276,9 +369,11 @@ export const followShop = asyncHandler(async (req, res) => {
     await user.save();
   }
 
-  res.status(200).json(
-    new ApiResponse(200, user.followingShops, "Shop followed successfully")
-  );
+  res
+    .status(200)
+    .json(
+      new ApiResponse(200, user.followingShops, "Shop followed successfully")
+    );
 });
 
 export const unfollowShop = asyncHandler(async (req, res) => {
@@ -291,63 +386,62 @@ export const unfollowShop = asyncHandler(async (req, res) => {
   );
   await user.save();
 
-  res.status(200).json(
-    new ApiResponse(200, user.followingShops, "Shop unfollowed successfully")
-  );
+  res
+    .status(200)
+    .json(
+      new ApiResponse(200, user.followingShops, "Shop unfollowed successfully")
+    );
 });
 
 export const getUserCart = asyncHandler(async (req, res) => {
-     const userCart = await Cart.aggregate([
-      {$match : {user: req.user._id}},
-      {
-        $lookup: {
-          from:"sales",
-          localField:"sales",
-          foreignField:"_id",
-          as:"salesInfo"
-        }
+  const userCart = await Cart.aggregate([
+    { $match: { user: req.user._id } },
+    {
+      $lookup: {
+        from: "sales",
+        localField: "sales",
+        foreignField: "_id",
+        as: "salesInfo",
       },
-      {
-        $unwind: "$salesInfo"
-      },
-      
-      {
-        $lookup:{
-          from:"shops",
-          localField:"salesInfo.shop",
-          foreignField:"_id",
-          as:"salesInfo.shop"
+    },
+    {
+      $unwind: "$salesInfo",
+    },
 
-        }
+    {
+      $lookup: {
+        from: "shops",
+        localField: "salesInfo.shop",
+        foreignField: "_id",
+        as: "salesInfo.shop",
       },
-      {
-        $unwind:"$salesInfo.shop"
+    },
+    {
+      $unwind: "$salesInfo.shop",
+    },
+    {
+      $group: {
+        _id: "$_id",
+        user: { $first: "$user" },
+        sales: { $push: "$salesInfo" },
       },
-      {
-        $group: {
-          _id:"$_id",
-          user: {$first:"$user"},
-          sales: {$push: "$salesInfo"}
-        }
-      }
-     ]);
+    },
+  ]);
 
-     const sales = userCart[0]?.sales || [];
+  const sales = userCart[0]?.sales || [];
 
-     return res
-            .status(200)
-            .json(
-              new ApiResponse(200, sales, "User cart is fetched successfully")
-            )
-})
+  return res
+    .status(200)
+    .json(new ApiResponse(200, sales, "User cart is fetched successfully"));
+});
 
 export const getFollowedShops = asyncHandler(async (req, res) => {
   const userId = req.user._id;
 
   const user = await User.findById(userId).populate("followingShops");
 
-  res.status(200).json(
-    new ApiResponse(200, user.followingShops, "Fetched followed shops")
-  );
+  res
+    .status(200)
+    .json(new ApiResponse(200, user.followingShops, "Fetched followed shops"));
 });
 //667788
