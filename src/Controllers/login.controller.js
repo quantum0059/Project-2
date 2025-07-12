@@ -325,6 +325,16 @@ export const refreshAccessToken = asyncHandler(async (req, res) => {
 //            .json(new ApiResponse(200, req.user, "current user fetchde successfully"))
 // })
 
+export const userProfile = asyncHandler(async(req, res) => {
+  const user = await User.findById(req.user?._id).select("-password");
+  if(!user){
+    throw new ApiError(400, "No user found")
+  }
+  return res
+         .status(200)
+         .json(new ApiResponse(200, user, "User account fetched"))
+}) 
+
 export const updateAccountDetail = asyncHandler(async (req, res) => {
   const { name, email } = req.body;
 
