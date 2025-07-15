@@ -31,7 +31,7 @@ export const getAllSales = asyncHandler(async (req, res) => {
   }
 
   const sales = await Sale.find(query)
-    .populate('shop', 'name category')
+    .populate('shop', 'shopName category')
     .sort({ startDate: -1 });
 
   res.status(200).json(
@@ -45,18 +45,18 @@ export const getAllSales = asyncHandler(async (req, res) => {
 // @route  GET /api/sales/:saleId
 // ==========================
 export const getSaleById = asyncHandler(async (req, res) => {
-  const { saleId } = req.params;
+  const { id } = req.params;
 
   // validate ObjectId
-  if (!mongoose.Types.ObjectId.isValid(saleId)) {
+  if (!mongoose.Types.ObjectId.isValid(id)) {
     throw new ApiError(400, "Invalid sale ID");
   }
 
   const sale = await Sale.findByIdAndUpdate(
-    saleId,
+    id,
     { $inc: { views: 1 } },
     { new: true }
-  ).populate('shop', 'name category');
+  ).populate('shop', 'shopName category');
 
   if (!sale) {
     throw new ApiError(404, "Sale not found");

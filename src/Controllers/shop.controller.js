@@ -4,6 +4,7 @@ import { asyncHandler } from "../utilities/asyncHandeler.js";
 import { ApiError } from "../utilities/ApiError.js";
 import { uploadOnCloudinary } from "../utilities/cloudinary.js";
 import Sale from "../models/saleschema.js";
+import { ApiResponse } from "../utilities/ApiResponse.js";
 
 export const registerShop = asyncHandler(async (req, res) => {
   const {
@@ -40,12 +41,14 @@ export const registerShop = asyncHandler(async (req, res) => {
   }
 
   const shopImagepath = req.files?.shopImage[0]?.path; 
+  const coverImagepath = req.files?.coverImage[0]?.path;
 
   const shopImage = await uploadOnCloudinary(shopImagepath)
+  const coverImage = await uploadOnCloudinary(coverImagepath)
 
-  if(!shopImage){
-    throw new ApiError(400, "Image is required")
-  }
+  if (!shopImage || !coverImage) {
+  throw new ApiError(400, "Failed to upload images");
+ }
 
   // Create shop
   const shop = await Shop.create({
@@ -54,6 +57,7 @@ export const registerShop = asyncHandler(async (req, res) => {
     address,
     contactDetails,
     shopImage:shopImage.url,
+    coverImage:coverImage.url,
     location: {
       type: 'Point',
       coordinates: parsedLocation.coordinates
@@ -124,3 +128,16 @@ export const getShopFollowers = asyncHandler(async (req, res) => {
     new ApiResponse(200, shop.followers, "Fetched followers of the shop")
   );
 });
+
+export const getAllShop = asyncHandler(async (req, res) => {
+  const userId = req.user?._id
+  if(!userId){
+    throw new ApiError(401,"No logged in User")
+  }
+
+  const shops = await Shop.find({owner: userId}).sort({createdAt:-1})
+
+  return res
+         .status(200)
+         .json(new ApiResponse(200, shops, "shops fetched Successfully"))
+})

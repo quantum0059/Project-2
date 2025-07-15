@@ -41,6 +41,10 @@ const shopSchema = new mongoose.Schema({
       type: String,
       required: true
   }, 
+  coverImage:{
+    type:String,
+    required:true
+  },
   followers: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'
