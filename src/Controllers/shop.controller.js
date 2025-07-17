@@ -6,6 +6,7 @@ import { uploadOnCloudinary } from "../utilities/cloudinary.js";
 import Sale from "../models/saleschema.js";
 import { ApiResponse } from "../utilities/ApiResponse.js";
 
+
 export const registerShop = asyncHandler(async (req, res) => {
   const {
     shopName,
@@ -141,3 +142,24 @@ export const getAllShop = asyncHandler(async (req, res) => {
          .status(200)
          .json(new ApiResponse(200, shops, "shops fetched Successfully"))
 })
+
+export const getShopInfo = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const shop = await Shop.findById(id).populate("followers"); // ✅ Only populate followers
+
+    if (!shop) {
+      throw new ApiError(404, "Shop not found");
+    }
+
+    const sales = await Sale.find({ shop: id }); // Get sales separately
+
+    return res
+      .status(200)
+      .json(new ApiResponse(200, { shop, sales }, "Shop info fetched successfully"));
+  } catch (err) {
+    console.error("❌ Failed to get shop info:", err);
+    throw new ApiError(500, "Internal Server Error: " + err.message);
+  }
+});

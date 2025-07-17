@@ -5,6 +5,7 @@ import {
   registerSales,
   getShopFollowers,
   getAllShop,
+  getShopInfo
 } from "../Controllers/shop.controller.js";
 
 import { upload } from "../middleware/multer.middleware.js";
@@ -34,4 +35,5 @@ router.route("/registerSales").post(
 );
 router.route("/shopfollowers").get(verfiyUser, getShopFollowers);
 router.route("/getallshops").get(verfiyUser, getAllShop);
+router.route("/:id/getshopinfo").get(getShopInfo)
 export default router;
