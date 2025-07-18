@@ -5,74 +5,144 @@ import { ApiError } from "../utilities/ApiError.js";
 import { uploadOnCloudinary } from "../utilities/cloudinary.js";
 import Sale from "../models/saleschema.js";
 import { ApiResponse } from "../utilities/ApiResponse.js";
+import { getCoordinatesFromAddress } from '../utilities/Geocode.js';
 
+
+// export const registerShop = asyncHandler(async (req, res) => {
+//   const {
+//     shopName,
+//     address,
+//     contactDetails,
+//     location,
+//     category,
+//   } = req.body;
+
+//   const owner = req.user._id;
+
+//   // Validation
+//   if (!shopName || !address || !contactDetails || !location || !category) {
+//     throw new ApiError(400, "All fields are required");
+//   }
+
+//   // Parse location if it's a string (e.g., sent as JSON string from frontend)
+//   let parsedLocation;
+//   try {
+//     parsedLocation = typeof location === "string" ? JSON.parse(location) : location;
+//   } catch (error) {
+//     throw new ApiError(400, "Invalid location format");
+//   }
+
+//   if (!parsedLocation.coordinates || parsedLocation.coordinates.length !== 2) {
+//     throw new ApiError(400, "Location must have valid coordinates [lng, lat]");
+//   }
+
+//   // Prevent duplicate shop by same owner
+//   const existingShop = await Shop.findOne({ owner });
+//   if (existingShop) {
+//     throw new ApiError(400, "You already own a shop");
+//   }
+
+//   const shopImagepath = req.files?.shopImage[0]?.path; 
+//   const coverImagepath = req.files?.coverImage[0]?.path;
+
+//   const shopImage = await uploadOnCloudinary(shopImagepath)
+//   const coverImage = await uploadOnCloudinary(coverImagepath)
+
+//   if (!shopImage || !coverImage) {
+//   throw new ApiError(400, "Failed to upload images");
+//  }
+
+//   // Create shop
+//   const shop = await Shop.create({
+//     owner:req.user?._id,
+//     shopName,
+//     address,
+//     contactDetails,
+//     shopImage:shopImage.url,
+//     coverImage:coverImage.url,
+//     location: {
+//       type: 'Point',
+//       coordinates: parsedLocation.coordinates
+//     },
+//     category
+//   });
+  
+//   // Update user role to 'owner'
+//   await User.findByIdAndUpdate(owner, { role: "owner" });
+
+//   res.status(201).json({
+//     success: true,
+//     message: "Shop registered successfully",
+//     shop
+//   });
+// });
 
 export const registerShop = asyncHandler(async (req, res) => {
   const {
     shopName,
     address,
     contactDetails,
-    location,
     category,
   } = req.body;
 
   const owner = req.user._id;
 
-  // Validation
-  if (!shopName || !address || !contactDetails || !location || !category) {
+  // ✅ Validation
+  if (!shopName || !address || !contactDetails || !category) {
     throw new ApiError(400, "All fields are required");
   }
 
-  // Parse location if it's a string (e.g., sent as JSON string from frontend)
-  let parsedLocation;
-  try {
-    parsedLocation = typeof location === "string" ? JSON.parse(location) : location;
-  } catch (error) {
-    throw new ApiError(400, "Invalid location format");
-  }
-
-  if (!parsedLocation.coordinates || parsedLocation.coordinates.length !== 2) {
-    throw new ApiError(400, "Location must have valid coordinates [lng, lat]");
-  }
-
-  // Prevent duplicate shop by same owner
+  // ✅ Prevent duplicate shop by same owner
   const existingShop = await Shop.findOne({ owner });
   if (existingShop) {
     throw new ApiError(400, "You already own a shop");
   }
 
-  const shopImagepath = req.files?.shopImage[0]?.path; 
-  const coverImagepath = req.files?.coverImage[0]?.path;
+  // ✅ Handle image upload
+  const shopImagePath = req.files?.shopImage?.[0]?.path;
+  const coverImagePath = req.files?.coverImage?.[0]?.path;
 
-  const shopImage = await uploadOnCloudinary(shopImagepath)
-  const coverImage = await uploadOnCloudinary(coverImagepath)
+  const shopImage = await uploadOnCloudinary(shopImagePath);
+  const coverImage = await uploadOnCloudinary(coverImagePath);
 
   if (!shopImage || !coverImage) {
-  throw new ApiError(400, "Failed to upload images");
- }
+    throw new ApiError(400, "Failed to upload images");
+  }
 
-  // Create shop
+  // ✅ Get coordinates using address
+  let coordinates;
+  try {
+    coordinates = await getCoordinatesFromAddress(address); // returns [lng, lat]
+    if (!coordinates || !Array.isArray(coordinates)) {
+      throw new Error("Invalid coordinates returned");
+    }
+  } catch (err) {
+    console.error("Geocoding failed:", err.message);
+    throw new ApiError(400, err.message || "Could not fetch coordinates from the address");
+  }
+
+  // ✅ Create shop
   const shop = await Shop.create({
-    owner:req.user?._id,
+    owner: req.user._id,
     shopName,
     address,
     contactDetails,
-    shopImage:shopImage.url,
-    coverImage:coverImage.url,
+    shopImage: shopImage.url,
+    coverImage: coverImage.url,
     location: {
-      type: 'Point',
-      coordinates: parsedLocation.coordinates
+      type: "Point",
+      coordinates, // [lng, lat]
     },
-    category
+    category,
   });
-  
-  // Update user role to 'owner'
+
+  // ✅ Update user role to 'owner'
   await User.findByIdAndUpdate(owner, { role: "owner" });
 
   res.status(201).json({
     success: true,
     message: "Shop registered successfully",
-    shop
+    shop,
   });
 });
 
@@ -143,23 +213,31 @@ export const getAllShop = asyncHandler(async (req, res) => {
          .json(new ApiResponse(200, shops, "shops fetched Successfully"))
 })
 
+// controllers/shop.controller.js
+
+
+
 export const getShopInfo = asyncHandler(async (req, res) => {
   const { id } = req.params;
 
   try {
-    const shop = await Shop.findById(id).populate("followers"); // ✅ Only populate followers
+    const shop = await Shop.findById(id)
+      .populate("owner", "name email phone") // Get owner's basic info
+      .populate("followers", "name");        // Get follower names only
 
     if (!shop) {
       throw new ApiError(404, "Shop not found");
     }
 
-    const sales = await Sale.find({ shop: id }); // Get sales separately
+    const sales = await Sale.find({ shop: id }); // Find sales by shop
 
-    return res
-      .status(200)
-      .json(new ApiResponse(200, { shop, sales }, "Shop info fetched successfully"));
+    return res.status(200).json(
+      new ApiResponse(200, { shop, sales }, "Shop info fetched successfully")
+    );
   } catch (err) {
     console.error("❌ Failed to get shop info:", err);
     throw new ApiError(500, "Internal Server Error: " + err.message);
   }
 });
+
+

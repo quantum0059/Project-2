@@ -7,7 +7,7 @@ import jwt from "jsonwebtoken";
 import { Cart } from "../models/cartSchema.js";
 import Shop from "../models/shopschema.js";
 
-import { OAuth2Client } from 'google-auth-library';
+import { OAuth2Client } from "google-auth-library";
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 const generateAccessAndRefereshTokens = async (userId) => {
@@ -110,7 +110,8 @@ export const loginUser = async (req, res) => {
     }
     if (user.isGoogleUser) {
       return res.status(403).json({
-        message: "This account uses Google login. Please use Google to sign in.",
+        message:
+          "This account uses Google login. Please use Google to sign in.",
       });
     }
 
@@ -121,11 +122,14 @@ export const loginUser = async (req, res) => {
 
     const accessToken = user.generateAccessToken();
     const refreshToken = user.generateRefreshToken();
-    
-    user.latitude = latitude
-    user.longitude = longitude
+
+    user.location = {
+      type: "Point",
+      coordinates: [parseFloat(longitude), parseFloat(latitude)],
+    };
+
     user.refreshToken = refreshToken;
-    
+
     await user.save({ validateBeforeSave: false });
     const logUser = await User.findById(user._id).select(
       "-password -refreshToken"
@@ -162,7 +166,7 @@ export const loginUser = async (req, res) => {
 // return res.redirect("/api/v1/shop/shopregister");
 
 export const googleLogin = asyncHandler(async (req, res) => {
-  const { token, latitude, longitude  } = req.body;
+  const { token, latitude, longitude } = req.body;
 
   if (!token || !latitude || !longitude) {
     throw new ApiError(400, "Google token and location are required");
@@ -182,8 +186,8 @@ export const googleLogin = asyncHandler(async (req, res) => {
     coordinates: [parseFloat(longitude), parseFloat(latitude)],
   };
 
-  let user = await User.findOne({ googleId }) || await User.findOne({ email });
-
+  let user =
+    (await User.findOne({ googleId })) || (await User.findOne({ email }));
 
   if (!user) {
     user = await User.create({
@@ -325,15 +329,15 @@ export const refreshAccessToken = asyncHandler(async (req, res) => {
 //            .json(new ApiResponse(200, req.user, "current user fetchde successfully"))
 // })
 
-export const userProfile = asyncHandler(async(req, res) => {
+export const userProfile = asyncHandler(async (req, res) => {
   const user = await User.findById(req.user?._id).select("-password");
-  if(!user){
-    throw new ApiError(400, "No user found")
+  if (!user) {
+    throw new ApiError(400, "No user found");
   }
   return res
-         .status(200)
-         .json(new ApiResponse(200, user, "User account fetched"))
-}) 
+    .status(200)
+    .json(new ApiResponse(200, user, "User account fetched"));
+});
 
 export const updateAccountDetail = asyncHandler(async (req, res) => {
   const { name, email } = req.body;
@@ -358,7 +362,7 @@ export const updateAccountDetail = asyncHandler(async (req, res) => {
   if (!user) {
     throw new ApiError(400, "User not found");
   }
- 
+
   return res
     .status(200)
     .json(new ApiResponse(200, user, "Account detail update successfully"));
