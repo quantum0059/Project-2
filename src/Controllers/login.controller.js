@@ -323,21 +323,21 @@ export const refreshAccessToken = asyncHandler(async (req, res) => {
   }
 });
 
-// export const getCurrentUser = asyncHandler(async (req, res) => {
-//     return res
-//            .status(200)
-//            .json(new ApiResponse(200, req.user, "current user fetchde successfully"))
-// })
 
 export const userProfile = asyncHandler(async (req, res) => {
-  const user = await User.findById(req.user?._id).select("-password");
+  const user = await User.findById(req.user?._id)
+    .select("-password")
+    .populate("followingShops", "shopName address"); // 👈 populate only needed fields
+
   if (!user) {
     throw new ApiError(400, "No user found");
   }
+
   return res
     .status(200)
     .json(new ApiResponse(200, user, "User account fetched"));
 });
+
 
 export const updateAccountDetail = asyncHandler(async (req, res) => {
   const { name, email } = req.body;
@@ -368,26 +368,27 @@ export const updateAccountDetail = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, user, "Account detail update successfully"));
 });
 
+// ✅ FOLLOW CONTROLLER
 export const followShop = asyncHandler(async (req, res) => {
   const userId = req.user._id;
-  const { shopId } = req.params;
+  const { shopId } = req.body;
 
-  // ✅ Check if shop exists
   const shop = await Shop.findById(shopId);
   if (!shop) throw new ApiError(404, "Shop not found");
 
-  // ✅ Add to following list if not already followed
   const user = await User.findById(userId);
+
   if (!user.followingShops.includes(shopId)) {
     user.followingShops.push(shopId);
     await user.save();
   }
 
-  res
-    .status(200)
-    .json(
-      new ApiResponse(200, user.followingShops, "Shop followed successfully")
-    );
+  if (!shop.followers.includes(userId)) {
+    shop.followers.push(userId);
+    await shop.save();
+  }
+
+  res.status(200).json(new ApiResponse(200, user.followingShops, "Shop followed successfully"));
 });
 
 export const unfollowShop = asyncHandler(async (req, res) => {

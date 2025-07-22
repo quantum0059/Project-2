@@ -1,11 +1,10 @@
 import mongoose from "mongoose";
 import Sale from "../models/saleschema.js";
 import Shop from "../models/shopschema.js";
-import User from "../models/userschema.js"
+import User from "../models/userschema.js";
 import { asyncHandler } from "../utilities/asyncHandeler.js";
 import { ApiError } from "../utilities/ApiError.js";
 import { ApiResponse } from "../utilities/ApiResponse.js";
-
 
 // ==========================
 // @desc   Get all sales
@@ -39,7 +38,6 @@ import { ApiResponse } from "../utilities/ApiResponse.js";
 //     new ApiResponse(200, sales, "Fetched sales successfully")
 //   );
 // });
-
 
 // export const getAllSales = asyncHandler(async (req, res) => {
 //   const { category, search, latitude, longitude } = req.query;
@@ -109,7 +107,9 @@ export const getAllSales = asyncHandler(async (req, res) => {
   // ✅ Get user's location from DB
   const user = await User.findById(userId).select("location");
   if (!user || !user.location || !user.location.coordinates) {
-    return res.status(400).json({ success: false, message: "User location not available" });
+    return res
+      .status(400)
+      .json({ success: false, message: "User location not available" });
   }
 
   const [lon, lat] = user.location.coordinates;
@@ -144,9 +144,12 @@ export const getAllSales = asyncHandler(async (req, res) => {
 
   // 🧠 Optional filter: search keyword in sale titles
   if (search) {
-    const words = search.trim().split(/\s+/).map((word) => ({
-      "sales.title": { $regex: word, $options: "i" },
-    }));
+    const words = search
+      .trim()
+      .split(/\s+/)
+      .map((word) => ({
+        "sales.title": { $regex: word, $options: "i" },
+      }));
     pipeline.push({ $match: { $and: words } });
   }
 
@@ -157,17 +160,19 @@ export const getAllSales = asyncHandler(async (req, res) => {
   const sales = results.map((r) => ({
     ...r.sales,
     shop: {
+      _id: r._id,
       shopName: r.shopName,
       category: r.category,
       distance: r.distance, // in meters
     },
   }));
 
-  res.status(200).json(
-    new ApiResponse(200, sales, "Fetched sales within 10km successfully")
-  );
+  res
+    .status(200)
+    .json(
+      new ApiResponse(200, sales, "Fetched sales within 10km successfully")
+    );
 });
-
 
 export const getSaleById = asyncHandler(async (req, res) => {
   const { id } = req.params;
@@ -181,15 +186,15 @@ export const getSaleById = asyncHandler(async (req, res) => {
     id,
     { $inc: { views: 1 } },
     { new: true }
-  ).populate('shop', 'shopName category');
+  ).populate("shop", "shopName category");
 
   if (!sale) {
     throw new ApiError(404, "Sale not found");
   }
 
-  res.status(200).json(
-    new ApiResponse(200, sale, "Fetched sale and incremented views")
-  );
+  res
+    .status(200)
+    .json(new ApiResponse(200, sale, "Fetched sale and incremented views"));
 });
 
 export const updateSaleByShopkeeper = asyncHandler(async (req, res) => {
@@ -210,16 +215,20 @@ export const updateSaleByShopkeeper = asyncHandler(async (req, res) => {
   const sale = await Sale.findOne({ _id: saleId, shop: shop._id });
   if (!sale) throw new ApiError(403, "Unauthorized to update this sale");
 
+  if ("generateCoupon" in req.body) {
+    req.body.generateCoupon =
+      req.body.generateCoupon === "true" || req.body.generateCoupon === true;
+  }
+
   const updatedSale = await Sale.findByIdAndUpdate(saleId, req.body, {
     new: true,
-    runValidators: true
+    runValidators: true,
   });
 
-  res.status(200).json(
-    new ApiResponse(200, updatedSale, "Sale updated successfully")
-  );
+  res
+    .status(200)
+    .json(new ApiResponse(200, updatedSale, "Sale updated successfully"));
 });
-
 
 export const getSalesForShopkeeper = asyncHandler(async (req, res) => {
   const userId = req.user._id;
@@ -233,8 +242,7 @@ export const getSalesForShopkeeper = asyncHandler(async (req, res) => {
   // 2. Find sales for this shop
   const sales = await Sale.find({ shop: shop._id }).sort({ startDate: -1 });
 
-  res.status(200).json(
-    new ApiResponse(200, sales, "Fetched all sales for this shopkeeper")
-  );
+  res
+    .status(200)
+    .json(new ApiResponse(200, sales, "Fetched all sales for this shopkeeper"));
 });
-

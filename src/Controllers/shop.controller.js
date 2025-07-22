@@ -167,6 +167,11 @@ export const registerSales = asyncHandler(async (req, res) => {
   if (!shop) {
     throw new ApiError(403, "You must own a shop to register a sale");
   }
+   if (!saleImage?.url) {
+    throw new ApiError(400, "Failed to upload sale image");
+  }
+
+    const generateCoupon = req.body.generateCoupon === "true";
 
   // ✅ Create the sale linked to the shop
   const sale = await Sale.create({
@@ -177,6 +182,7 @@ export const registerSales = asyncHandler(async (req, res) => {
     discount,
     startDate: new Date(startDate),
     endDate: new Date(endDate),
+    generateCoupon,
   });
 
   // ✅ Respond with success
