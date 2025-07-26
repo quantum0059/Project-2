@@ -165,38 +165,102 @@ export const loginUser = async (req, res) => {
 // res.cookie("refreshToken", refreshToken, options);
 // return res.redirect("/api/v1/shop/shopregister");
 
+// export const googleLogin = asyncHandler(async (req, res) => {
+//   const { token, latitude, longitude } = req.body;
+
+//   if (!token || !latitude || !longitude) {
+//     throw new ApiError(400, "Google token and location are required");
+//   }
+
+//   const ticket = await client.verifyIdToken({
+//     idToken: token,
+//     audience: process.env.GOOGLE_CLIENT_ID,
+//   });
+
+//   const payload = ticket.getPayload();
+
+//   const { email, name, sub: googleId } = payload;
+
+//   const location = {
+//     type: "Point",
+//     coordinates: [parseFloat(longitude), parseFloat(latitude)],
+//   };
+
+//   let user =
+//     (await User.findOne({ googleId })) || (await User.findOne({ email }));
+
+//   if (!user) {
+//     user = await User.create({
+//       name,
+//       email,
+//       isGoogleUser: true, // Empty because it's Google login
+//       googleId,
+//       location,
+//     });
+//   }
+
+//   const accessToken = user.generateAccessToken();
+//   const refreshToken = user.generateRefreshToken();
+
+//   user.refreshToken = refreshToken;
+//   await user.save({ validateBeforeSave: false });
+
+//   const options = {
+//     httpOnly: true,
+//     secure: true,
+//   };
+
+//   return res
+//     .status(200)
+//     .cookie("accessToken", accessToken, options)
+//     .cookie("refreshToken", refreshToken, options)
+//     .json(
+//       new ApiResponse(
+//         200,
+//         {
+//           user: {
+//             id: user._id,
+//             name: user.name,
+//             email: user.email,
+//             role: user.role,
+//           },
+//           accessToken,
+//           refreshToken,
+//         },
+//         "Google login successful"
+//       )
+//     );
+// });
+
 export const googleLogin = asyncHandler(async (req, res) => {
   const { token, latitude, longitude } = req.body;
-
+  // Validate
   if (!token || !latitude || !longitude) {
     throw new ApiError(400, "Google token and location are required");
   }
-
+  // Verify token
   const ticket = await client.verifyIdToken({
     idToken: token,
     audience: process.env.GOOGLE_CLIENT_ID,
   });
-
   const payload = ticket.getPayload();
-
   const { email, name, sub: googleId } = payload;
-
-  const location = {
-    type: "Point",
-    coordinates: [parseFloat(longitude), parseFloat(latitude)],
-  };
 
   let user =
     (await User.findOne({ googleId })) || (await User.findOne({ email }));
 
   if (!user) {
-    user = await User.create({
-      name,
-      email,
-      isGoogleUser: true, // Empty because it's Google login
-      googleId,
-      location,
-    });
+    // *** CRITICAL: LOGIN ONLY IF USER EXISTS ***
+    return res.status(404).json({ message: "NOT_REGISTERED" });
+  }
+
+  // update location if needed?
+  if (latitude && longitude) {
+    user.location = {
+      type: "Point",
+      coordinates: [parseFloat(longitude), parseFloat(latitude)],
+    };
+    await user.save({ validateBeforeSave: false });
   }
 
   const accessToken = user.generateAccessToken();
@@ -214,23 +278,81 @@ export const googleLogin = asyncHandler(async (req, res) => {
     .status(200)
     .cookie("accessToken", accessToken, options)
     .cookie("refreshToken", refreshToken, options)
-    .json(
-      new ApiResponse(
-        200,
-        {
-          user: {
-            id: user._id,
-            name: user.name,
-            email: user.email,
-            role: user.role,
-          },
-          accessToken,
-          refreshToken,
-        },
-        "Google login successful"
-      )
-    );
+    .json({
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+      },
+      accessToken,
+      refreshToken,
+      message: "Google login successful"
+    });
 });
+
+export const googleRegister = asyncHandler(async (req, res) => {
+  const { token, latitude, longitude } = req.body;
+  if (!token || !latitude || !longitude) {
+    throw new ApiError(400, "Google token and location are required");
+  }
+  const ticket = await client.verifyIdToken({
+    idToken: token,
+    audience: process.env.GOOGLE_CLIENT_ID,
+  });
+  const payload = ticket.getPayload();
+  const { email, name, sub: googleId } = payload;
+
+  let user =
+    (await User.findOne({ googleId })) || (await User.findOne({ email }));
+
+  if (user) {
+    // Cannot register again!
+    return res.status(409).json({ message: "ALREADY_REGISTERED" });
+  }
+
+  const location = {
+    type: "Point",
+    coordinates: [parseFloat(longitude), parseFloat(latitude)],
+  };
+
+  user = await User.create({
+    name,
+    email,
+    isGoogleUser: true,
+    googleId,
+    location,
+    // You might get role from body if needed
+  });
+
+  const accessToken = user.generateAccessToken();
+  const refreshToken = user.generateRefreshToken();
+
+  user.refreshToken = refreshToken;
+  await user.save({ validateBeforeSave: false });
+
+  const options = {
+    httpOnly: true,
+    secure: true,
+  };
+
+  return res
+    .status(201)
+    .cookie("accessToken", accessToken, options)
+    .cookie("refreshToken", refreshToken, options)
+    .json({
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+      },
+      accessToken,
+      refreshToken,
+      message: "Google signup successful"
+    });
+});
+
 
 export const logOutUser = asyncHandler(async (req, res) => {
   await User.findByIdAndUpdate(

@@ -164,6 +164,7 @@ export const getAllSales = asyncHandler(async (req, res) => {
       shopName: r.shopName,
       category: r.category,
       distance: r.distance, // in meters
+      address: r.address, 
     },
   }));
 

@@ -20,6 +20,13 @@ const saleSchema = new mongoose.Schema(
     image: {
       type: String,
     },
+    productImages: [
+      // Array for multiple product images (up to 7)
+      {
+        type: String,
+        trim: true,
+      }
+    ],
     discount: {
       type: Number,
       required: true,
@@ -41,6 +48,7 @@ const saleSchema = new mongoose.Schema(
     generateCoupon: {
       type: Boolean,
       default: false,
+      required:true
     },
   },
   { timestamps: true }

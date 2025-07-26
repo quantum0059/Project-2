@@ -12,6 +12,7 @@ import {
   getFollowedShops,
   googleLogin,
   userProfile,
+  googleRegister,
 } from "../Controllers/login.controller.js";
 import { verfiyUser } from "../middleware/auth.middleware.js";
 const router = express.Router();
@@ -37,6 +38,7 @@ router
 
 router.route("/logout").post(verfiyUser, logOutUser);
 router.route("/google-login").post(googleLogin);
+router.route("/google-register").post(googleRegister)
 router.route("/changepassword").post(verfiyUser, changeUserPassword);
 router.route("/refreshaccesstoken").post(verfiyUser, refreshAccessToken);
 router.route("/updateaccount").post(verfiyUser, updateAccountDetail);

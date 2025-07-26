@@ -146,46 +146,107 @@ export const registerShop = asyncHandler(async (req, res) => {
   });
 });
 
+// export const registerSales = asyncHandler(async (req, res) => {
+//   const { title, description, discount, startDate, endDate } = req.body;
+
+//   // ✅ Get userId from the authenticated user (set by verfiyUser middleware)
+//   const userId = req.user._id;
+
+//   // ✅ Validate required fields
+//   if (!title || !discount || !startDate || !endDate) {
+//     throw new ApiError(400, "Title, discount, start date, and end date are required");
+//   }
+
+//   // ✅ Check if the user owns a shop
+//   const shop = await Shop.findOne({ owner: userId });
+
+//   const saleImagePath = req.files?.saleImage[0]?.path;
+
+//   const saleImage = await uploadOnCloudinary(saleImagePath)
+
+//   if (!shop) {
+//     throw new ApiError(403, "You must own a shop to register a sale");
+//   }
+//    if (!saleImage?.url) {
+//     throw new ApiError(400, "Failed to upload sale image");
+//   }
+
+//     const generateCoupon = req.body.generateCoupon === "true";
+
+//   // ✅ Create the sale linked to the shop
+//   const sale = await Sale.create({
+//     shop: shop._id,
+//     title,
+//     description,
+//     image: saleImage.url,
+//     discount,
+//     startDate: new Date(startDate),
+//     endDate: new Date(endDate),
+//     generateCoupon,
+//   });
+
+//   // ✅ Respond with success
+//   res.status(201).json({
+//     success: true,
+//     message: "Sale registered successfully",
+//     sale,
+//   });
+// });
+
 export const registerSales = asyncHandler(async (req, res) => {
   const { title, description, discount, startDate, endDate } = req.body;
-
-  // ✅ Get userId from the authenticated user (set by verfiyUser middleware)
   const userId = req.user._id;
 
-  // ✅ Validate required fields
+  // Validate required fields
   if (!title || !discount || !startDate || !endDate) {
     throw new ApiError(400, "Title, discount, start date, and end date are required");
   }
 
-  // ✅ Check if the user owns a shop
+  // Find the shop by owner
   const shop = await Shop.findOne({ owner: userId });
-
-  const saleImagePath = req.files?.saleImage[0]?.path;
-
-  const saleImage = await uploadOnCloudinary(saleImagePath)
-
   if (!shop) {
     throw new ApiError(403, "You must own a shop to register a sale");
   }
-   if (!saleImage?.url) {
+
+  // Handle main poster image
+  const saleImagePath = req.files?.saleImage?.[0]?.path;
+  if (!saleImagePath) {
+    throw new ApiError(400, "Sale poster image is required");
+  }
+  const saleImage = await uploadOnCloudinary(saleImagePath);
+  if (!saleImage?.url) {
     throw new ApiError(400, "Failed to upload sale image");
   }
 
-    const generateCoupon = req.body.generateCoupon === "true";
+  // Handle product gallery images (up to 7)
+  const productImagePaths = req.files?.productImages?.map(f => f.path) || [];
+  const uploadPromises = productImagePaths.map(path => uploadOnCloudinary(path));
+  const productImageResults = await Promise.all(uploadPromises);
+  const productImageUrls = productImageResults
+    .filter(result => result?.url)
+    .map(result => result.url)
+    .slice(0, 7); // enforce max 7 images
 
-  // ✅ Create the sale linked to the shop
+  // Optional: validation if you require at least one gallery image
+  // if (productImageUrls.length < 1) {
+  //   throw new ApiError(400, "At least one product image is required");
+  // }
+
+  const generateCoupon = req.body.generateCoupon === "true";
+
+  // Create the sale
   const sale = await Sale.create({
     shop: shop._id,
     title,
     description,
     image: saleImage.url,
+    productImages: productImageUrls,
     discount,
     startDate: new Date(startDate),
     endDate: new Date(endDate),
     generateCoupon,
   });
 
-  // ✅ Respond with success
   res.status(201).json({
     success: true,
     message: "Sale registered successfully",

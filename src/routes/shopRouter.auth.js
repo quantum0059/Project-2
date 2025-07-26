@@ -30,6 +30,7 @@ router.route("/registerSales").post(
       name: "saleImage",
       maxCount: 1,
     },
+    { name: "productImages", maxCount: 7 }
   ]),
   registerSales
 );
